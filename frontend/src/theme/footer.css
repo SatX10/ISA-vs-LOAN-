@@ -1,0 +1,59 @@
+.site-footer {
+  margin-inline-start: var(--shell-sidebar-width, 0px);
+  padding: var(--space-6) var(--space-7) var(--space-4);
+  border-block-start: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.site-footer-content {
+  display: grid;
+  grid-template-columns: minmax(11rem, .8fr) minmax(0, 2fr);
+  gap: var(--space-5);
+}
+
+.site-footer-brand .shell-brand { width: fit-content; color: var(--text); }
+.site-footer-brand p { max-inline-size: 30ch; margin-block-start: var(--space-2); font-size: .875rem; }
+.site-footer-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+.site-footer-links h2 { color: var(--text); font-size: .875rem; letter-spacing: 0; }
+.site-footer-links ul { list-style: none; margin: var(--space-1) 0 0; padding: 0; }
+.site-footer-links a, .site-footer-bottom button {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--touch-size);
+  color: var(--text-secondary);
+  font-size: .875rem;
+  text-decoration: underline;
+}
+
+.site-footer-links a:hover, .site-footer-bottom button:hover { color: var(--accent); }
+.site-footer-bottom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border);
+}
+
+.site-footer-bottom button {
+  gap: var(--space-1);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  text-underline-offset: .2em;
+}
+
+.welcome-footer { position: relative; }
+.welcome-footer > * { max-inline-size: 76rem; margin-inline: auto; }
+
+@media (width <= 900px) {
+  .site-footer { margin-inline-start: 0; padding-inline: calc(var(--space-4) + var(--safe-left)) calc(var(--space-4) + var(--safe-right)); }
+  .app-shell .site-footer { padding-block-end: calc(var(--mobile-bottom-offset) + var(--mobile-nav-height) + var(--space-4)); }
+}
+
+@media (width <= 620px) {
+  .site-footer-content { grid-template-columns: 1fr; }
+  .site-footer-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

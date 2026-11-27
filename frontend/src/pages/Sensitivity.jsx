@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { RiskGrid } from '../components/DecisionTools.jsx';
 import { getSensitivity } from '../api/client.js';
 import { comparisonRequest } from '../comparison.js';
 import HeatmapChart from '../components/HeatmapChart.jsx';
+import LoadingPanel from '../components/LoadingPanel.jsx';
 import { useStore } from '../state/store.js';
+import { SensitivityRanking } from '../components/FinancingCharts.jsx';
 
 export default function Sensitivity() {
   const inputParams = useStore((state) => state.inputParams);
@@ -40,7 +43,7 @@ export default function Sensitivity() {
         <label className="contract-label">
           Show
           <select value={metric} onChange={(event) => setMetric(event.target.value)}>
-            <option value="delta">ISA repayment minus loan repayment</option>
+            <option value="delta">Repayment difference</option>
             <option value="apr">ISA effective annual rate</option>
           </select>
         </label>
@@ -50,12 +53,18 @@ export default function Sensitivity() {
         <h2 className="section-title">{metric === 'delta' ? 'Repayment Difference' : 'ISA Effective Annual Rate'}</h2>
         <p className="section-block">
           {metric === 'delta'
-            ? 'Negative values favor the ISA. Positive values favor the loan.'
+            ? 'The grid subtracts loan repayment from ISA repayment. Negative values favor the ISA. Positive values favor the loan.'
             : 'A dash indicates that the model could not calculate a rate for that cell.'}
         </p>
-        {loading && <p className="loading-spinner" role="status">Building sensitivity grid…</p>}
+        {loading && (
+          <LoadingPanel label="Building sensitivity grid">
+            <div className="skeleton skeleton-chart" />
+          </LoadingPanel>
+        )}
         {!loading && !error && data?.axis === axis && <HeatmapChart data={data} metric={metric} />}
       </div>
+      {!loading && !error && data?.axis === axis && <SensitivityRanking rows={data.impacts} />}
+      <RiskGrid />
     </div>
   );
 }

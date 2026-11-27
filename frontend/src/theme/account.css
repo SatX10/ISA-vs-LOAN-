@@ -1,0 +1,135 @@
+.account-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.account-heading .account-profile-jump { display: none; }
+
+.account-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(17rem, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.spending-card, .account-settings {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-4);
+}
+
+:is(.spending-card, .account-settings) h2 {
+  font-size: clamp(1.15rem, 1rem + 0.55vw, 1.4rem);
+}
+
+.account-settings > p, .spending-header p {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.spending-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.spending-header p { margin-block-start: var(--space-1); }
+.spending-month { inline-size: min(100%, 13rem); }
+
+.spending-summary, .expense-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.spending-summary { margin: 0; }
+
+.spending-summary > div, .expense-editor {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.spending-summary dt { color: var(--muted); font-size: 0.875rem; }
+.spending-summary dd { margin: var(--space-1) 0 0; font-size: clamp(1rem, 0.9rem + 0.8vw, 1.45rem); font-weight: 700; overflow-wrap: anywhere; }
+
+.spending-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-3);
+  color: var(--muted);
+  text-align: center;
+}
+
+.spending-empty svg { color: var(--accent); }
+.spending-card h3 { font-size: 0.975rem; }
+
+.spending-categories, .expense-list {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spending-categories { display: grid; gap: var(--space-3); padding-block: var(--space-2); }
+
+.spending-categories li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  font-size: 0.875rem;
+}
+
+.spending-categories meter {
+  grid-column: 1 / -1;
+  appearance: none;
+  inline-size: 100%;
+  block-size: var(--space-2);
+}
+
+.spending-categories meter::-webkit-meter-bar {
+  block-size: var(--space-2);
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-hover);
+}
+
+.spending-categories meter::-webkit-meter-optimum-value { background: var(--accent); border-radius: 999px; }
+.spending-categories meter::-moz-meter-bar { background: var(--accent); border-radius: 999px; }
+
+.expense-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding-block: var(--space-3);
+  border-block-start: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+.expense-list li > div:first-child { overflow-wrap: anywhere; }
+.expense-list p { color: var(--muted); font-size: 0.8rem; }
+
+.expense-actions, .expense-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.expense-icon { padding-inline: 0; }
+.expense-pagination { justify-content: space-between; color: var(--muted); font-size: 0.875rem; }
+
+@media (width <= 1050px) {
+  .account-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
+  .account-heading .account-profile-jump { display: inline-flex; }
+  #profile-title { scroll-margin-block-start: var(--anchor-scroll-margin, calc(var(--topbar-height) + var(--space-6))); }
+}
+
+@media (width <= 540px) {
+  .expense-fields { grid-template-columns: minmax(0, 1fr); }
+  .expense-list li { grid-template-columns: minmax(0, 1fr) auto; }
+  .expense-actions { grid-column: 1 / -1; }
+}

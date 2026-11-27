@@ -1,58 +1,7 @@
 import { useId, useState } from 'react';
+import { Info } from 'lucide-react';
+import { INR } from '../comparison.js';
 
-const styles = {
-  wrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.3rem',
-  },
-  row: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '0.5rem',
-  },
-  label: {
-    fontSize: '0.85rem',
-    fontWeight: 500,
-    color: 'var(--color-text-secondary)',
-  },
-  numberInput: {
-    width: '72px',
-    padding: '0.2rem 0.4rem',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    background: 'var(--color-surface-raised)',
-    color: 'var(--color-text-primary)',
-    fontSize: '0.85rem',
-    textAlign: 'right',
-  },
-  range: {
-    width: '100%',
-    accentColor: 'var(--color-accent)',
-    cursor: 'pointer',
-  },
-  meta: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '0.72rem',
-    color: 'var(--color-text-muted)',
-  },
-};
-
-/**
- * SliderInput — a labelled range slider synced with a numeric text input.
- *
- * Props:
- *   label        string   Display label
- *   value        number   Current value
- *   onChange     fn(val)  Called with numeric value on change
- *   min          number
- *   max          number
- *   step         number   (default 1)
- *   unit         string   Optional unit suffix (e.g. '%', '₹', 'LPA')
- *   decimals     number   Decimal places for display (default 0)
- */
 export default function SliderInput({
   label,
   value,
@@ -62,57 +11,96 @@ export default function SliderInput({
   step = 1,
   unit = '',
   decimals = 0,
+  help,
+  error,
 }) {
   const id = useId();
+  const rangeId = `${id}-range`;
+  const numberId = `${id}-number`;
+  const messageId = `${id}-message`;
   const [draft, setDraft] = useState(null);
+  const [invalidDraft, setInvalidDraft] = useState(false);
 
-  const format = (v) =>
-    unit ? `${Number(v).toFixed(decimals)}${unit}` : Number(v).toFixed(decimals);
+  const format = (amount) => unit.trim() === '₹'
+    ? INR.format(amount)
+    : `${amount.toFixed(decimals)}${unit}`;
+  const snapped = Math.min(max, Math.max(min, min + Math.round((value - min) / step) * step));
+  const progress = max > min ? (snapped - min) / (max - min) * 100 : 0;
+  const message = error || (invalidDraft ? `Enter ${decimals ? 'a number' : 'a whole number'} from ${format(min)} to ${format(max)}.` : '');
 
-  const handleSlider = (e) => {
+  function clearDraft() {
     setDraft(null);
-    onChange(e.target.valueAsNumber);
-  };
-
-  const handleNumber = (e) => {
-    const { value: text, valueAsNumber, validity } = e.target;
-    setDraft(text);
-    if (validity.valid && Number.isFinite(valueAsNumber)) onChange(valueAsNumber);
-  };
+    setInvalidDraft(false);
+  }
 
   return (
-    <div style={styles.wrapper}>
-      <div style={styles.row}>
-        <label htmlFor={id} style={styles.label}>
-          {label}
-        </label>
+    <div className="slider-field">
+      <div className="slider-heading">
+        <div className="slider-title">
+          <label htmlFor={rangeId}>{label}</label>
+          {help && (
+            <details className="slider-help" onKeyDown={(event) => {
+              if (event.key === 'Escape' && event.currentTarget.open) {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector('summary').focus();
+              }
+            }}>
+              <summary aria-label={`About ${label}`}>
+                <Info size={16} strokeWidth={1.75} aria-hidden="true" />
+              </summary>
+              <p className="jargon-tooltip">{help}</p>
+            </details>
+          )}
+        </div>
         <input
+          id={numberId}
+          className="slider-number numeric"
           type="number"
           value={draft ?? value}
           min={min}
           max={max}
           step={decimals === 0 ? 1 : 'any'}
-          onChange={handleNumber}
-          onBlur={() => setDraft(null)}
-          style={styles.numberInput}
+          required
           aria-label={`${label} numeric input`}
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message ? messageId : undefined}
+          onChange={(event) => {
+            const { value: text, valueAsNumber, validity } = event.target;
+            const valid = validity.valid && Number.isFinite(valueAsNumber);
+            setDraft(text);
+            setInvalidDraft(!valid && (text !== '' || validity.badInput));
+            if (valid) onChange(valueAsNumber);
+          }}
+          onBlur={(event) => {
+            if (event.currentTarget.validity.valid) clearDraft();
+            else setInvalidDraft(true);
+          }}
+          onInvalid={() => setInvalidDraft(true)}
         />
       </div>
       <input
-        id={id}
+        id={rangeId}
+        className="slider-range"
         type="range"
         min={min}
         max={max}
         step={step}
         value={value}
-        onChange={handleSlider}
-        style={styles.range}
-        aria-label={label}
+        style={{ '--slider-progress': `${progress}%` }}
+        aria-valuetext={format(snapped)}
+        aria-describedby={message ? messageId : undefined}
+        onChange={(event) => {
+          clearDraft();
+          onChange(event.target.valueAsNumber);
+        }}
       />
-      <div style={styles.meta}>
+      <div className="slider-readouts numeric" aria-hidden="true">
         <span>{format(min)}</span>
-        <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>{format(value)}</span>
+        <strong>{format(value)}</strong>
         <span>{format(max)}</span>
+      </div>
+      <div className="slider-message" aria-live="polite">
+        {message && <p id={messageId}>{message}</p>}
       </div>
     </div>
   );

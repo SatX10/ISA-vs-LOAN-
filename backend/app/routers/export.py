@@ -19,6 +19,7 @@ from app.limiter import limiter
 from app.schemas import CompareRequest, SaveContractRequest, SavedContract
 from app.engine.isa import simulate_isa
 from app.engine.loan import simulate_loan
+from app.engine.comparison import month_date
 from app import db
 
 router = APIRouter(tags=["export"])
@@ -27,7 +28,7 @@ contracts_router = APIRouter(tags=["contracts"])
 
 @router.post("/export/csv")
 @limiter.limit("10/minute")
-async def export_csv(request: Request, body: CompareRequest) -> StreamingResponse:
+async def export_csv(request: Request, body: CompareRequest, include_income: bool = True) -> StreamingResponse:
     """
     Run both simulations and stream the combined amortization schedule as CSV.
     Columns: month, isa_payment, isa_cumulative, loan_emi, loan_interest,
@@ -37,7 +38,7 @@ async def export_csv(request: Request, body: CompareRequest) -> StreamingRespons
     loan_params = body.loan.model_dump()
 
     isa_result = simulate_isa(**isa_params)
-    loan_result = simulate_loan(**loan_params)
+    loan_result = simulate_loan(**loan_params, calculate_rate=False)
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -55,7 +56,21 @@ async def export_csv(request: Request, body: CompareRequest) -> StreamingRespons
         "loan_principal_component",
         "loan_closing_balance",
         "loan_cumulative_interest",
+        "loan_total_payment",
+        "loan_cumulative_paid",
+        "loan_upfront_fee",
+        "loan_recurring_fee",
+        "loan_net_disbursement",
+        "loan_deferred_interest",
+        "loan_annual_rate",
+        "isa_month_status",
+        "payment_date",
     ])
+
+    if loan_result.upfront_fee or loan_params["disbursements"]:
+        writer.writerow([0, "", "", "", "", "", "", "", "", "", "",
+                         loan_result.upfront_fee, loan_result.upfront_fee, loan_result.upfront_fee,
+                         0, loan_result.initial_disbursement, 0, "", "", month_date(body.funding_date, 0)])
 
     max_months = max(len(isa_result.schedule), len(loan_result.schedule))
 
@@ -65,7 +80,7 @@ async def export_csv(request: Request, body: CompareRequest) -> StreamingRespons
 
         writer.writerow([
             i + 1,
-            isa_row.annual_income if isa_row else "",
+            isa_row.annual_income if isa_row and include_income else "",
             isa_row.above_threshold if isa_row else "",
             isa_row.payment if isa_row else "",
             isa_row.cumulative_paid if isa_row else "",
@@ -75,6 +90,15 @@ async def export_csv(request: Request, body: CompareRequest) -> StreamingRespons
             loan_row.principal_component if loan_row else "",
             loan_row.closing_balance if loan_row else "",
             loan_row.cumulative_interest if loan_row else "",
+            loan_row.payment if loan_row else "",
+            loan_row.cumulative_paid if loan_row else loan_result.total_paid,
+            0,
+            loan_row.fee if loan_row else "",
+            loan_row.disbursement if loan_row else "",
+            loan_row.accrued_interest if loan_row else "",
+            loan_row.annual_rate if loan_row else "",
+            isa_row.status if isa_row else "",
+            month_date(body.funding_date, i + 1),
         ])
 
     output.seek(0)

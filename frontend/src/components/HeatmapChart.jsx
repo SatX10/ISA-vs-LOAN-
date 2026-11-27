@@ -26,14 +26,13 @@ export default function HeatmapChart({ data, metric }) {
               <th scope="row">{income}</th>
               {values.map((value, column) => {
                 const cell = cells[row][column];
-                const color = showRate
-                  ? 'var(--color-accent)'
-                  : cell < 0 ? 'var(--color-success)' : 'var(--color-danger)';
                 const intensity = 10 + 25 * Math.abs(cell) / (maxDifference || 1);
                 return (
-                  <td key={value} style={cell ? {
-                    backgroundColor: `color-mix(in srgb, ${color} ${intensity}%, var(--color-surface))`,
-                  } : undefined}>
+                  <td
+                    key={value}
+                    data-tone={cell ? (showRate ? 'rate' : cell < 0 ? 'lower' : 'higher') : undefined}
+                    style={cell ? { '--heatmap-intensity': `${intensity}%` } : undefined}
+                  >
                     {showRate ? formatRate(cell) : formatDelta(cell)}
                   </td>
                 );

@@ -1,118 +1,59 @@
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ReferenceLine,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { INR } from '../comparison.js';
+import ChartTooltip from './ChartTooltip.jsx';
 
-function CustomTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div
-      style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-sm)',
-        padding: '0.6rem 0.9rem',
-        fontSize: '0.82rem',
-        boxShadow: '0 4px 12px var(--color-shadow-md)',
-      }}
-    >
-      <p style={{ fontWeight: 600, marginBottom: '0.3rem', color: 'var(--color-text-primary)' }}>
-        Month {label}
-      </p>
-      {payload.map((entry) => (
-        <p key={entry.name} style={{ color: entry.color }}>
-          {entry.name}: {INR.format(entry.value)}
-        </p>
-      ))}
-    </div>
-  );
-}
+const AXIS_TEXT = { fill: 'var(--chart-axis)', fontSize: 11 };
+const AXIS_RULE = { stroke: 'var(--chart-rule)' };
+const ISA_LINE = 'var(--series-isa)';
+const LOAN_LINE = 'var(--series-loan)';
+const RUPEE_TICKS = new Intl.NumberFormat('en-IN', {
+  style: 'currency', currency: 'INR', notation: 'compact', maximumFractionDigits: 1,
+});
 
-/**
- * ComparisonChart — LineChart overlaying ISA monthly payment vs Loan EMI.
- *
- * Props:
- *   schedule    Array<{ month, isa_payment, loan_emi, cumulative_isa, cumulative_loan }>
- *   height      number  (default 320)
- *   showCumulative  boolean  Toggle between monthly and cumulative view
- */
-export default function ComparisonChart({ schedule = [], height = 320, showCumulative = false, cap }) {
-  if (!schedule.length) {
-    return (
-      <div
-        style={{
-          height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--color-text-muted)',
-          fontSize: '0.875rem',
-          border: '1px dashed var(--color-border)',
-          borderRadius: 'var(--radius-md)',
-        }}
-      >
-        No data — run a calculation first
-      </div>
-    );
-  }
-
+export default function ComparisonChart({ schedule, showCumulative, cap, budget, firstShortfall }) {
   const isaKey = showCumulative ? 'cumulative_isa' : 'isa_payment';
   const loanKey = showCumulative ? 'cumulative_loan' : 'loan_emi';
   const isaLabel = showCumulative ? 'Cumulative ISA' : 'ISA Payment';
-  const loanLabel = showCumulative ? 'Cumulative Loan' : 'Loan EMI';
+  const loanLabel = showCumulative ? 'Cumulative loan' : 'Loan payment';
+
+  if (!schedule.length) return <p className="dashboard-placeholder">No monthly payment data.</p>;
 
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={schedule} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-        <XAxis
-          dataKey="month"
-          label={{ value: 'Month', position: 'insideBottomRight', offset: -8, fontSize: 11 }}
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-        />
-        <YAxis
-          tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`}
-          tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-          width={56}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <Legend wrapperStyle={{ fontSize: '0.82rem' }} />
-        <Line
-          type="monotone"
-          dataKey={isaKey}
-          name={isaLabel}
-          stroke="var(--color-chart-isa)"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 4 }}
-        />
-        <Line
-          type="monotone"
-          dataKey={loanKey}
-          name={loanLabel}
-          stroke="var(--color-chart-loan)"
-          strokeWidth={2}
-          dot={false}
-          activeDot={{ r: 4 }}
-        />
-        {showCumulative && cap != null && (
-          <ReferenceLine
-            y={cap}
-            ifOverflow="extendDomain"
-            stroke="var(--color-text-muted)"
-            strokeDasharray="4 4"
-            label={{ value: 'ISA cap', position: 'insideTopLeft', fill: 'var(--color-text-secondary)' }}
+    <div className="chart-plot">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={schedule} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} accessibilityLayer>
+          <CartesianGrid vertical={false} strokeDasharray="3 4" stroke="var(--chart-grid)" strokeOpacity={0.15} />
+          <XAxis dataKey="month" interval="preserveStartEnd" minTickGap={24} tickMargin={8}
+            tick={AXIS_TEXT} tickLine={false} axisLine={AXIS_RULE}
+            tickFormatter={(month) => `M${month}`} />
+          <YAxis tickFormatter={RUPEE_TICKS.format} width={58}
+            tick={AXIS_TEXT} tickLine={false} axisLine={false} tickMargin={6} />
+          <Tooltip
+            isAnimationActive={false}
+            cursor={{ stroke: 'var(--chart-axis)', strokeDasharray: '3 4' }}
+            content={<ChartTooltip formatLabel={(month) => `Month ${month}`} formatValue={INR.format} />}
           />
-        )}
-      </LineChart>
-    </ResponsiveContainer>
+          <Legend />
+          <Line type="linear" dataKey={isaKey} name={isaLabel} stroke={ISA_LINE} strokeWidth={2}
+            dot={false} activeDot={{ r: 4, fill: ISA_LINE, stroke: 'var(--surface)' }} isAnimationActive={false} />
+          <Line type="linear" dataKey={loanKey} name={loanLabel} stroke={LOAN_LINE} strokeWidth={2} strokeDasharray="6 4"
+            dot={false} activeDot={{ r: 4, fill: LOAN_LINE, stroke: 'var(--surface)' }} isAnimationActive={false} />
+          {showCumulative && cap != null && (
+            <ReferenceLine y={cap} ifOverflow="extendDomain"
+              stroke="var(--chart-axis)" strokeDasharray="5 4"
+              label={{ value: 'ISA cap', position: 'insideTopLeft', fill: 'var(--chart-axis)', fontSize: 11 }} />
+          )}
+          {!showCumulative && budget != null && (
+            <ReferenceLine y={budget} ifOverflow="extendDomain" stroke="var(--notice)" strokeDasharray="5 4"
+              label={{ value: 'Monthly budget', position: 'insideTopLeft', fill: 'var(--chart-axis)', fontSize: 11 }} />
+          )}
+          {!showCumulative && Number.isFinite(firstShortfall) && (
+            <ReferenceLine x={firstShortfall} stroke="var(--notice)" strokeDasharray="2 5" />
+          )}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -1,131 +1,104 @@
-import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { useTheme } from '../theme/ThemeProvider.jsx';
+import { useEffect, useRef, useState } from 'react';
+import { Menu, Scale, UserRound, X } from 'lucide-react';
+import { Link, NavLink, useLocation } from 'react-router-dom';
+import { ABOUT_LINK, matchesNavigation, NAV_ICON_PROPS, NAV_LINKS } from './navigation.js';
+import NavigationLink from './NavigationLink.jsx';
+import ThemePicker from './ThemePicker.jsx';
+import { useAccount } from '../account/AccountProvider.jsx';
 
-import { NAV_LINKS } from './navigation.js';
-
-const styles = {
-  topbar: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 'var(--topbar-height)',
-    background: 'var(--color-surface)',
-    borderBottom: '1px solid var(--color-border)',
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0 1rem',
-    gap: '0.75rem',
-    zIndex: 200,
-  },
-  brand: {
-    fontWeight: 700,
-    fontSize: '1rem',
-    color: 'var(--color-text-primary)',
-    flex: 1,
-  },
-  hamburger: {
-    background: 'none',
-    border: 'none',
-    fontSize: '1.4rem',
-    color: 'var(--color-text-primary)',
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0.25rem',
-  },
-  drawer: {
-    position: 'fixed',
-    top: 'var(--topbar-height)',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: 'rgba(0,0,0,0.5)',
-    zIndex: 150,
-  },
-  drawerContent: {
-    background: 'var(--color-surface)',
-    width: '240px',
-    height: '100%',
-    padding: '1rem 0.5rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2px',
-  },
-  themeBtn: {
-    marginTop: 'auto',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 0.75rem',
-    background: 'var(--color-surface-raised)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-text-secondary)',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-    width: '100%',
-  },
-};
-
-const linkBase = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.6rem',
-  padding: '0.6rem 0.75rem',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--color-text-secondary)',
-  fontSize: '0.95rem',
-  fontWeight: 500,
-  textDecoration: 'none',
-};
+const ACCOUNT_TITLES = { '/sign-in': 'Sign in', '/sign-up': 'Sign up', '/profile': 'Account' };
+const DRAWER_LINKS = [...NAV_LINKS, ABOUT_LINK];
 
 export default function Topbar() {
-  const [open, setOpen] = useState(false);
-  const { theme, toggleTheme } = useTheme();
+  const { pathname } = useLocation();
+  const { profile } = useAccount();
+  const drawer = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const activePage = DRAWER_LINKS.find((item) => matchesNavigation(item, pathname));
+  const ActiveIcon = activePage?.Icon ?? (ACCOUNT_TITLES[pathname] ? UserRound : Scale);
+  const accountLabel = profile ? 'Account' : 'Sign in';
+
+  useEffect(() => {
+    drawer.current?.close();
+  }, [pathname]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(width > 900px)');
+    const closeOnDesktop = (event) => {
+      if (event.matches) drawer.current?.close();
+    };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
+
+  function openMenu() {
+    drawer.current.showModal();
+    setMenuOpen(true);
+  }
 
   return (
     <>
-      <header style={styles.topbar} className="topbar-mobile">
-        <button style={styles.hamburger} onClick={() => setOpen((o) => !o)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
-          {open ? '✕' : '☰'}
-        </button>
-        <span style={styles.brand}>⚖️ ISA Truth</span>
+      <header className="shell-topbar">
         <button
-          style={{ ...styles.hamburger, fontSize: '1.2rem' }}
-          onClick={toggleTheme}
-          aria-label="Toggle theme"
+          type="button"
+          className="shell-icon-action shell-menu-trigger"
+          aria-label="Open navigation"
+          aria-haspopup="dialog"
+          aria-controls="mobile-navigation-drawer"
+          aria-expanded={menuOpen}
+          onClick={openMenu}
         >
-          {theme === 'coffee' ? '☕' : theme === 'dark' ? '🌙' : '☀️'}
+          <Menu {...NAV_ICON_PROPS} />
         </button>
+        <Link to="/" className="shell-brand shell-mobile-brand">
+          <span className="shell-brand-mark"><Scale {...NAV_ICON_PROPS} /></span>
+          ISA Truth
+        </Link>
+        <span className="shell-route">
+          <ActiveIcon {...NAV_ICON_PROPS} />
+          {activePage?.label ?? ACCOUNT_TITLES[pathname] ?? 'ISA Truth'}
+        </span>
+        <ThemePicker />
+        <NavLink to={profile ? '/profile' : '/sign-in'} className="shell-account" aria-label={accountLabel}>
+          <UserRound {...NAV_ICON_PROPS} />
+          <span>{accountLabel}</span>
+        </NavLink>
       </header>
 
-      {open && (
-        <div style={styles.drawer} onClick={() => setOpen(false)}>
-          <nav style={{ ...styles.drawerContent, overflowY: 'auto' }} aria-label="Main navigation" onClick={(e) => e.stopPropagation()}>
-            {NAV_LINKS.map(({ to, label, icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
-                onClick={() => setOpen(false)}
-                style={({ isActive }) => ({
-                  ...linkBase,
-                  background: isActive ? 'var(--color-accent-subtle)' : 'transparent',
-                  color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                })}
-              >
-                <span>{icon}</span>
-                <span>{label}</span>
-              </NavLink>
-            ))}
-            <button style={styles.themeBtn} onClick={toggleTheme}>
-              <span>Theme</span>
-              <span className="theme-name">{theme}</span>
+      <dialog
+        className="shell-drawer"
+        ref={drawer}
+        id="mobile-navigation-drawer"
+        aria-labelledby="mobile-navigation-title"
+        onClose={() => setMenuOpen(Boolean(drawer.current?.open))}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
+        <div className="shell-drawer-panel">
+          <div className="shell-drawer-header">
+            <h2 id="mobile-navigation-title">Navigation</h2>
+            <button
+              type="button"
+              aria-label="Close navigation"
+              className="shell-icon-action"
+              onClick={() => drawer.current.close()}
+            >
+              <X {...NAV_ICON_PROPS} />
             </button>
+          </div>
+          <nav className="shell-drawer-links" aria-label="Main navigation">
+            {DRAWER_LINKS.map((item) => (
+              <NavigationLink
+                key={item.to}
+                item={item}
+                className="shell-nav-link"
+                onClick={() => drawer.current.close()}
+              />
+            ))}
           </nav>
         </div>
-      )}
+      </dialog>
     </>
   );
 }

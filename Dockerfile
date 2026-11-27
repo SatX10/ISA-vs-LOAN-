@@ -10,7 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=10000 FRONTEND_DIST=/app/f
 WORKDIR /app
 COPY backend/requirements-production.txt ./
 RUN pip install --no-cache-dir -r requirements-production.txt \
-    && useradd --uid 10001 --no-create-home isa
+    && useradd --uid 10001 --no-create-home isa \
+    && install -d -o isa -g isa /app/data
 COPY backend/app ./app
 COPY --from=frontend /build/dist ./frontend
 USER isa

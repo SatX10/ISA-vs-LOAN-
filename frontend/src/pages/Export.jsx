@@ -7,12 +7,13 @@ export default function Export() {
   const { inputParams, results } = useStore();
   const [downloading, setDownloading] = useState(false);
   const [dlError, setDlError] = useState(null);
+  const [includeIncome, setIncludeIncome] = useState(false);
 
   const handleDownload = async () => {
     setDownloading(true);
     setDlError(null);
     try {
-      const blob = await exportCsv(comparisonRequest(inputParams));
+      const blob = await exportCsv(comparisonRequest(inputParams), includeIncome);
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
@@ -44,6 +45,10 @@ export default function Export() {
         <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
           The export uses the current calculator inputs. Amounts in the CSV are in lakhs of rupees.
         </p>
+        <label className="planner-ai-control">
+          <input type="checkbox" checked={includeIncome} onChange={(event) => setIncludeIncome(event.target.checked)} />
+          Include salary in report
+        </label>
         <div className="button-row">
           <button className="btn btn-primary" onClick={handleDownload} disabled={downloading}>
             {downloading ? 'Preparing…' : 'Download CSV'}
@@ -57,7 +62,7 @@ export default function Export() {
       {results && (
         <section className="card section-block">
           <h2 className="section-title">Comparison Summary</h2>
-          <p>Principal {formatLakhs(results.loan.principal)} · Starting salary {inputParams.annual_income_lpa} LPA</p>
+          <p>Net funding {formatLakhs(results.loan.principal)}{includeIncome && ` · Starting salary ${inputParams.annual_income_lpa} LPA`}</p>
           <p>ISA {formatLakhs(results.isa.total_paid)} · Loan {formatLakhs(results.loan.total_paid)} · ISA minus loan {formatDelta(results.summary.delta)}</p>
           <p>Effective annual rates · ISA {formatRate(results.isa.effective_annual_rate)} · Loan {formatRate(results.loan.effective_annual_rate)}</p>
         </section>
@@ -78,7 +83,7 @@ export default function Export() {
                   <th>Month</th>
                   <th>ISA Payment</th>
                   <th>Cumulative ISA</th>
-                  <th>Loan EMI</th>
+                  <th>Loan payment</th>
                   <th>Cumulative Loan</th>
                   <th>Loan Balance</th>
                 </tr>
@@ -86,7 +91,7 @@ export default function Export() {
               <tbody>
                 {schedule.map((row) => (
                   <tr key={row.month}>
-                    <td>{row.month}</td>
+                    <td>{row.month}{row.date && ` · ${row.date}`}</td>
                     <td>{INR.format(row.isa_payment ?? 0)}</td>
                     <td>{INR.format(row.cumulative_isa ?? 0)}</td>
                     <td>{INR.format(row.loan_emi ?? 0)}</td>

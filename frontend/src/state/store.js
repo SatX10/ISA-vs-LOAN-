@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { postCalculate } from '../api/client.js';
 import { comparisonRequest } from '../comparison.js';
+import { readAdvancedTerms } from '../advancedTerms.js';
 
 const DEFAULT_PARAMS = {
   loan_amount: 500000,       // ₹ 5 lakh
@@ -16,16 +17,16 @@ const DEFAULT_PARAMS = {
 };
 
 const LIMITS = {
-  loan_amount: [50000, 2000000],
-  annual_income_lpa: [1, 50],
+  loan_amount: [1, 1_000_000_000],
+  annual_income_lpa: [0.01, 10_000],
   income_growth_pct: [0, 30],
   isa_pct: [1, 30],
   isa_cap_multiple: [1, 4],
   isa_trigger_lpa: [0, 15],
   isa_term_months: [12, 120, true],
   delay_months: [0, 24, true],
-  loan_rate_pct: [0, 36],
-  loan_term_months: [6, 120, true],
+  loan_rate_pct: [0, 60],
+  loan_term_months: [1, 360, true],
 };
 
 function getInitialParams() {
@@ -39,8 +40,10 @@ function getInitialParams() {
       inputs[name] = value;
     }
   }
-  return inputs;
+  return { ...inputs, ...readAdvancedTerms(query) };
 }
+
+let calculationVersion = 0;
 
 export const useStore = create((set, get) => ({
   // ── State ──────────────────────────────────────────────────────────────────
@@ -52,43 +55,35 @@ export const useStore = create((set, get) => ({
   // ── Actions ────────────────────────────────────────────────────────────────
 
   /** Update a single input parameter by key */
-  setParam: (key, value) =>
-    set((state) => ({
-      inputParams: { ...state.inputParams, [key]: value },
-      // Clear stale results when inputs change
-      results: null,
-      error: null,
-    })),
+  setParam: (key, value) => get().setParams({ [key]: value }),
 
   /** Update multiple params at once */
-  setParams: (patch) =>
+  setParams: (patch, replace = false) => {
+    calculationVersion++;
     set((state) => ({
-      inputParams: { ...state.inputParams, ...patch },
+      inputParams: { ...(replace ? DEFAULT_PARAMS : state.inputParams), ...patch },
       results: null,
       error: null,
-    })),
+      loading: false,
+    }));
+  },
 
   /** Call the backend /api/calculate and store results */
   calculate: async () => {
     const { inputParams } = get();
     if (get().loading) return;
+    const version = ++calculationVersion;
     set({ loading: true, error: null });
     try {
       const results = await postCalculate(comparisonRequest(inputParams));
-      if (get().inputParams === inputParams) set({ results });
+      if (version === calculationVersion) set({ results });
     } catch (err) {
-      if (get().inputParams === inputParams) set({ error: err.message });
+      if (version === calculationVersion) set({ error: err.message });
     } finally {
-      set({ loading: false });
+      if (version === calculationVersion) set({ loading: false });
     }
   },
 
   /** Reset everything to defaults */
-  reset: () =>
-    set({
-      inputParams: { ...DEFAULT_PARAMS },
-      results: null,
-      loading: false,
-      error: null,
-    }),
+  reset: () => get().setParams({}, true),
 }));

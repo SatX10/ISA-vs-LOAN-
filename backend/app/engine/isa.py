@@ -28,6 +28,7 @@ class ISAMonthlyRow:
     payment: float                # actual payment this month (0 if below threshold)
     cumulative_paid: float
     remaining_cap: float          # max_total_payment - cumulative_paid
+    status: str = "paid"
 
 
 @dataclass
@@ -48,6 +49,7 @@ class ISAResult:
     effective_annual_rate: float | None = None
     nominal_annual_rate: float | None = None
     payment_cap_hit: bool = False
+    end_reason: str = "term"
 
 
 def simulate_isa(
@@ -61,6 +63,11 @@ def simulate_isa(
     monthly_payment_cap: float | None = None,  # hard cap per month; if None → no cap
     delay_months: int = 0,
     *,
+    job_delay_months: int = 0,
+    term_basis: str = "elapsed",
+    max_window_months: int = 360,
+    eligible_income_pct: float = 100,
+    income_overrides: dict[int, float] | None = None,
     calculate_rate: bool = True,
 ) -> ISAResult:
     """
@@ -112,9 +119,16 @@ def simulate_isa(
     schedule: List[ISAMonthlyRow] = []
     monthly_cashflows = [-principal]
 
-    for month in range(1, delay_months + term_months + 1):
-        years_elapsed = (month - 1) // 12
-        annual_income = starting_income_lpa * ((1 + annual_income_growth_rate) ** years_elapsed)
+    income_overrides = income_overrides or {}
+    window = max_window_months if term_basis == "paying" else term_months
+    result.end_reason = "window" if term_basis == "paying" else "term"
+    for month in range(1, delay_months + window + 1):
+        years_elapsed = max(0, month - 1 - job_delay_months) // 12
+        projected_income = (
+            0 if month <= job_delay_months
+            else starting_income_lpa * ((1 + annual_income_growth_rate) ** years_elapsed)
+        )
+        annual_income = income_overrides.get(month, projected_income) * eligible_income_pct / 100
         monthly_income = annual_income / 12.0
 
         above = annual_income >= trigger_threshold_lpa
@@ -149,12 +163,17 @@ def simulate_isa(
             payment=round(payment, 6),
             cumulative_paid=round(cumulative_paid, 6),
             remaining_cap=round(remaining_cap, 6),
+            status="grace" if month <= delay_months else "paid" if payment > 0 else "below_threshold",
         )
         schedule.append(row)
 
         if cap_reached:
             payoff_month = month
             result.payment_cap_hit = True
+            result.end_reason = "cap"
+            break
+        if term_basis == "paying" and months_paid == term_months:
+            result.end_reason = "term"
             break
 
     result.schedule = schedule

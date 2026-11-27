@@ -1,102 +1,69 @@
-import { NavLink } from 'react-router-dom';
-import { useTheme } from '../theme/ThemeProvider.jsx';
+import { useEffect, useState } from 'react';
+import { PanelLeftClose, PanelLeftOpen, Scale } from 'lucide-react';
+import { Link, NavLink } from 'react-router-dom';
+import { ABOUT_LINK, NAV_ICON_PROPS, NAV_LINKS } from './navigation.js';
+import NavigationLink from './NavigationLink.jsx';
 
-import { NAV_LINKS } from './navigation.js';
+const SIDEBAR_PREFERENCE = 'isa-truth-sidebar-collapsed';
 
-const styles = {
-  sidebar: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    width: 'var(--sidebar-width)',
-    height: '100vh',
-    background: 'var(--color-surface)',
-    borderRight: '1px solid var(--color-border)',
-    display: 'flex',
-    flexDirection: 'column',
-    zIndex: 100,
-    padding: '0 0 1rem 0',
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '1.25rem 1.25rem 1rem',
-    borderBottom: '1px solid var(--color-border)',
-    marginBottom: '0.5rem',
-  },
-  brandIcon: { fontSize: '1.4rem' },
-  brandName: { fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' },
-  brandSub: { fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block' },
-  nav: { flex: 1, display: 'flex', flexDirection: 'column', gap: '2px', padding: '0 0.5rem' },
-  themeArea: {
-    marginTop: 'auto',
-    padding: '0.75rem 0.75rem 0',
-    borderTop: '1px solid var(--color-border)',
-  },
-  themeBtn: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 0.75rem',
-    background: 'var(--color-surface-raised)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-text-secondary)',
-    fontSize: '0.85rem',
-    cursor: 'pointer',
-  },
-};
-
-const linkBase = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.6rem',
-  padding: '0.5rem 0.75rem',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--color-text-secondary)',
-  fontSize: '0.9rem',
-  fontWeight: 500,
-  textDecoration: 'none',
-  transition: 'background var(--transition-fast), color var(--transition-fast)',
-};
+function readSidebarPreference() {
+  try {
+    return localStorage.getItem(SIDEBAR_PREFERENCE) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export default function Sidebar() {
-  const { theme, toggleTheme } = useTheme();
+  const [collapsed, setCollapsed] = useState(readSidebarPreference);
+  const CollapseIcon = collapsed ? PanelLeftOpen : PanelLeftClose;
+  const collapseLabel = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  const AboutIcon = ABOUT_LINK.Icon;
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_PREFERENCE, String(collapsed));
+    } catch {
+      // The sidebar still toggles when storage is unavailable.
+    }
+  }, [collapsed]);
 
   return (
-    <aside style={styles.sidebar} className="sidebar-desktop" role="navigation" aria-label="Main navigation">
-      <div style={styles.brand}>
-        <span style={styles.brandIcon}>⚖️</span>
-        <div>
-          <span style={styles.brandName}>ISA Truth</span>
-          <span style={styles.brandSub}>ISA vs Loan Analyser</span>
-        </div>
+    <aside className="sidebar-desktop" data-collapsed={collapsed}>
+      <div className="sidebar-brand-row">
+        <Link to="/" className="shell-brand" title={collapsed ? 'ISA Truth' : undefined}>
+          <span className="shell-brand-mark"><Scale {...NAV_ICON_PROPS} /></span>
+          <span className="sidebar-label">ISA Truth</span>
+        </Link>
       </div>
 
-      <nav style={styles.nav}>
-        {NAV_LINKS.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === '/'}
-            style={({ isActive }) => ({
-              ...linkBase,
-              background: isActive ? 'var(--color-accent-subtle)' : 'transparent',
-              color: isActive ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-            })}
-          >
-            <span>{icon}</span>
-            <span>{label}</span>
-          </NavLink>
+      <nav className="sidebar-links" id="desktop-navigation" aria-label="Main navigation">
+        {NAV_LINKS.map((item) => (
+          <NavigationLink
+            key={item.to}
+            item={item}
+            title={collapsed ? item.label : undefined}
+            className="shell-nav-link"
+            labelClassName="sidebar-label"
+          />
         ))}
+        <NavLink to={ABOUT_LINK.to} className="shell-nav-link sidebar-about" title={collapsed ? ABOUT_LINK.label : undefined}>
+          <AboutIcon {...NAV_ICON_PROPS} />
+          <span className="sidebar-label">{ABOUT_LINK.label}</span>
+        </NavLink>
       </nav>
 
-      <div style={styles.themeArea}>
-        <button style={styles.themeBtn} onClick={toggleTheme} aria-label="Toggle colour theme">
-          <span>Theme</span>
-          <span className="theme-name">{theme}</span>
+      <div className="sidebar-footer">
+        <button
+          type="button"
+          className="shell-nav-link sidebar-toggle"
+          aria-expanded={!collapsed}
+          aria-controls="desktop-navigation"
+          title={collapsed ? collapseLabel : undefined}
+          onClick={() => setCollapsed((value) => !value)}
+        >
+          <CollapseIcon {...NAV_ICON_PROPS} />
+          <span className="sidebar-label">{collapseLabel}</span>
         </button>
       </div>
     </aside>

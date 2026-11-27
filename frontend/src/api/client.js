@@ -66,6 +66,20 @@ export async function getBreakEven(params, signal) {
   });
 }
 
+export function comparePortfolio(payload, signal) {
+  return request('/api/portfolio', { method: 'POST', body: JSON.stringify(payload), signal });
+}
+
+export function runDecisionTool(tool, payload, signal) {
+  return request(`/api/decisions/${tool}`, { method: 'POST', body: JSON.stringify(payload), signal });
+}
+
+export function extractQuoteFile(file) {
+  return request('/api/portfolio/quote-text', {
+    method: 'POST', body: file, headers: { 'Content-Type': 'application/pdf' },
+  });
+}
+
 export async function compareContracts(contracts, salary) {
   return request('/api/contract-comparison', {
     method: 'POST',
@@ -93,8 +107,8 @@ export async function postCalculate(params) {
  * POST /api/export/csv — download CSV
  * @param {Object} params  Input parameters to export
  */
-export async function exportCsv(params) {
-  return request('/api/export/csv', {
+export async function exportCsv(params, includeIncome = true) {
+  return request(`/api/export/csv?include_income=${includeIncome}`, {
     method: 'POST',
     headers: { Accept: 'text/csv' },
     body: JSON.stringify(params),

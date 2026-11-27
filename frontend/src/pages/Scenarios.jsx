@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart,
   Bar,
@@ -12,28 +13,51 @@ import {
 import { getScenarios } from '../api/client.js';
 import { comparisonRequest, formatLakhs, formatRate } from '../comparison.js';
 import { useStore } from '../state/store.js';
+import ChartTooltip from '../components/ChartTooltip.jsx';
+import LoadingPanel from '../components/LoadingPanel.jsx';
+import ResponsiveCell from '../components/ResponsiveCell.jsx';
 
 const DEFAULT_INCOMES = [6, 9, 12];
+const AXIS_TEXT = { fill: 'var(--chart-axis)', fontSize: 11 };
 
 export default function Scenarios() {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [response, setResponse] = useState(null);
   const [customIncome, setCustomIncome] = useState('');
   const [incomes, setIncomes] = useState(DEFAULT_INCOMES);
   const inputParams = useStore((state) => state.inputParams);
+  const hasComparison = useStore((state) => state.results != null);
 
   useEffect(() => {
+    if (!hasComparison) return undefined;
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
     getScenarios(comparisonRequest(inputParams), incomes, controller.signal)
-      .then((result) => { if (!controller.signal.aborted) setData(result); })
-      .catch((e) => { if (!controller.signal.aborted) setError(e.message); })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      .then((data) => { if (!controller.signal.aborted) setResponse({ inputParams, incomes, data }); })
+      .catch((error) => { if (!controller.signal.aborted) setResponse({ inputParams, incomes, error: error.message }); });
     return () => controller.abort();
-  }, [inputParams, incomes]);
+  }, [hasComparison, inputParams, incomes]);
 
+  const heading = (
+    <header className="page-header">
+      <h1>Salary Scenarios</h1>
+      <p>See how starting salary changes the outcome using your calculator terms.</p>
+    </header>
+  );
+  if (!hasComparison) {
+    return (
+      <div>
+        {heading}
+        <section className="card reading-width">
+          <h2 className="section-title">Start with a comparison</h2>
+          <p>Enter your offer terms in Calculator and select Calculate to see salary scenarios.</p>
+          <Link className="btn btn-secondary section-top" to="/calculator">Open Calculator</Link>
+        </section>
+      </div>
+    );
+  }
+
+  const current = response?.inputParams === inputParams && response.incomes === incomes ? response : null;
+  const { data = [], error } = current ?? {};
+  const loading = !current;
   const chartData = data.map((s) => ({
     name: s.label,
     'ISA Total': s.isa_total_paid,
@@ -42,10 +66,7 @@ export default function Scenarios() {
 
   return (
     <div>
-      <div className="page-header">
-        <h1>Salary Scenarios</h1>
-        <p>See how starting salary changes the outcome using your calculator terms.</p>
-      </div>
+      {heading}
       <form className="card button-row section-block" onSubmit={(event) => {
         event.preventDefault();
         const value = Number(customIncome);
@@ -65,67 +86,65 @@ export default function Scenarios() {
         )}
       </form>
 
-      {error && <div className="error-banner">⚠️ {error}</div>}
+      {error && <p className="error-banner" role="alert">{error}</p>}
 
       {loading ? (
-        <div className="loading-spinner">⏳ Loading scenarios…</div>
+        <LoadingPanel label="Loading scenarios">
+          <section className="card section-block">
+            <div className="skeleton skeleton-line-short section-block" />
+            <div className="skeleton skeleton-chart" />
+          </section>
+        </LoadingPanel>
       ) : !error && data.length > 0 && (
         <>
           {/* Bar chart */}
-          <div className="card" style={{ marginBottom: '1.5rem' }}>
+          <section className="card section-block">
             <h2 className="section-title">Total Cost Comparison</h2>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                <XAxis dataKey="name" tick={{ fill: 'var(--color-text-muted)', fontSize: 12 }} />
-                <YAxis
-                  tickFormatter={(v) => `₹${v}L`}
-                  tick={{ fill: 'var(--color-text-muted)', fontSize: 11 }}
-                  width={60}
-                />
-                <Tooltip
-                  formatter={formatLakhs}
-                  contentStyle={{
-                    background: 'var(--color-surface)',
-                    borderColor: 'var(--color-border)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.82rem',
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '0.82rem' }} />
-                <Bar dataKey="ISA Total" fill="var(--color-chart-isa)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Loan Total" fill="var(--color-chart-loan)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+            <div className="chart-plot">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 12, right: 12, bottom: 4, left: 0 }} accessibilityLayer>
+                  <CartesianGrid vertical={false} strokeDasharray="3 4" stroke="var(--chart-grid)" strokeOpacity={0.15} />
+                  <XAxis dataKey="name" tick={AXIS_TEXT} tickMargin={8} tickLine={false}
+                    axisLine={{ stroke: 'var(--chart-rule)' }} />
+                  <YAxis tickFormatter={(value) => `₹${value}L`} width={48}
+                    tick={AXIS_TEXT} tickLine={false} axisLine={false} tickMargin={6} />
+                  <Tooltip content={<ChartTooltip formatValue={formatLakhs} />} isAnimationActive={false}
+                    cursor={{ fill: 'var(--surface-hover)' }} />
+                  <Legend />
+                  <Bar dataKey="ISA Total" fill="var(--series-isa)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                  <Bar dataKey="Loan Total" fill="var(--series-loan)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
 
           {/* Table */}
           <div className="card">
-            <h2 className="section-title">Scenario Details</h2>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Scenario</th>
-                    <th>Income (LPA)</th>
-                    <th>ISA Total Paid</th>
-                    <th>Loan Total Paid</th>
-                    <th>Month Cap Reached</th>
-                    <th>Effective ISA Rate</th>
-                    <th>Winner</th>
+            <h2 className="section-title" id="scenario-details-title">Scenario Details</h2>
+            <div className="table-scroll">
+              <table className="data-table responsive-table" role="table" aria-labelledby="scenario-details-title">
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th role="columnheader" scope="col">Scenario</th>
+                    <th role="columnheader" scope="col">Income (LPA)</th>
+                    <th role="columnheader" scope="col">ISA Total Paid</th>
+                    <th role="columnheader" scope="col">Loan Total Paid</th>
+                    <th role="columnheader" scope="col">Month Cap Reached</th>
+                    <th role="columnheader" scope="col">Effective ISA Rate</th>
+                    <th role="columnheader" scope="col">Winner</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody role="rowgroup">
                   {data.map((s) => (
-                      <tr key={s.starting_income_lpa}>
-                        <td>{s.label}</td>
-                        <td>{s.starting_income_lpa}</td>
-                        <td>{formatLakhs(s.isa_total_paid)}</td>
-                        <td>{formatLakhs(s.loan_total_paid)}</td>
-                        <td>{s.isa_months_to_payoff ?? '—'}</td>
-                        <td>{formatRate(s.isa_effective_rate)}</td>
-                        <td>{s.winner}</td>
-                      </tr>
+                    <tr key={s.starting_income_lpa} role="row">
+                      <th scope="row" role="rowheader">{s.label}</th>
+                      <ResponsiveCell label="Income (LPA)">{s.starting_income_lpa}</ResponsiveCell>
+                      <ResponsiveCell label="ISA total paid">{formatLakhs(s.isa_total_paid)}</ResponsiveCell>
+                      <ResponsiveCell label="Loan total paid">{formatLakhs(s.loan_total_paid)}</ResponsiveCell>
+                      <ResponsiveCell label="Month cap reached">{s.isa_months_to_payoff ?? '—'}</ResponsiveCell>
+                      <ResponsiveCell label="Effective ISA rate">{formatRate(s.isa_effective_rate)}</ResponsiveCell>
+                      <ResponsiveCell label="Winner">{s.winner}</ResponsiveCell>
+                    </tr>
                   ))}
                 </tbody>
               </table>

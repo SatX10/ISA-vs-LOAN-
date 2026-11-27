@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { compareContracts, getSaved, deleteContract } from '../api/client.js';
 import { formatLakhs, formatRate } from '../comparison.js';
 import { useStore } from '../state/store.js';
+import { Files, Trash2 } from 'lucide-react';
+import LoadingPanel from '../components/LoadingPanel.jsx';
+import ResponsiveCell from '../components/ResponsiveCell.jsx';
 
 export default function Saved() {
   const [contracts, setContracts] = useState([]);
@@ -63,11 +66,11 @@ export default function Saved() {
         <p>Review saved terms and rank their ISA costs at a common starting salary.</p>
       </div>
 
-      {error && <div className="error-banner">⚠️ {error}</div>}
+      {error && <p className="error-banner" role="alert">{error}</p>}
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 className="section-title" style={{ marginBottom: 0 }}>Saved Records</h2>
+        <div className="chart-heading">
+          <h2 className="section-title" id="saved-records-title">Saved Records</h2>
           <div className="button-row">
             <button className="btn btn-secondary" onClick={fetchList} disabled={loading || deleting !== null || comparing}>
               Refresh
@@ -80,53 +83,52 @@ export default function Saved() {
         </div>
 
         {loading ? (
-          <div className="loading-spinner">⏳ Loading saved contracts…</div>
+          <LoadingPanel label="Loading saved contracts" />
         ) : contracts.length === 0 ? (
-          <div style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem', padding: '2rem 0', textAlign: 'center' }}>
-            <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📭</p>
+          <div className="saved-empty">
+            <Files size={24} strokeWidth={1.75} aria-hidden="true" />
             <p>No saved contracts yet.</p>
             <p>Use the Calculator tab to run and save a comparison.</p>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Contract</th>
-                  <th>Saved At</th>
-                  <th>Principal</th>
-                  <th>Income (LPA)</th>
-                  <th>ISA %</th>
-                  <th>Loan Rate</th>
-                  <th>ISA Term</th>
-                  <th>Loan Term</th>
-                  <th></th>
+          <div className="table-scroll">
+            <table className="data-table responsive-table" role="table" aria-labelledby="saved-records-title">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Contract</th>
+                  <th scope="col" role="columnheader">Saved At</th>
+                  <th scope="col" role="columnheader">Principal</th>
+                  <th scope="col" role="columnheader">Income (LPA)</th>
+                  <th scope="col" role="columnheader">ISA %</th>
+                  <th scope="col" role="columnheader">Loan Rate</th>
+                  <th scope="col" role="columnheader">ISA Term</th>
+                  <th scope="col" role="columnheader">Loan Term</th>
+                  <th scope="col" role="columnheader"><span className="visually-hidden">Actions</span></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {contracts.map((c) => (
-                    <tr key={c.id}>
-                      <th scope="row">{c.label}</th>
-                      <td style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
+                    <tr key={c.id} role="row">
+                      <th scope="row" role="rowheader">{c.label}</th>
+                      <ResponsiveCell label="Saved at" className="saved-date">
                         {c.created_at ? new Date(c.created_at).toLocaleString() : '—'}
-                      </td>
-                      <td>{formatLakhs(c.loan_params.principal)}</td>
-                      <td>{c.isa_params.starting_income_lpa}</td>
-                      <td>{c.isa_params.income_share_pct}%</td>
-                      <td>{formatRate(c.loan_params.annual_interest_rate)}</td>
-                      <td>{c.isa_params.term_months} mo</td>
-                      <td>{c.loan_params.term_months} mo</td>
-                      <td>
+                      </ResponsiveCell>
+                      <ResponsiveCell label="Principal">{formatLakhs(c.loan_params.principal)}</ResponsiveCell>
+                      <ResponsiveCell label="Income (LPA)">{c.isa_params.starting_income_lpa}</ResponsiveCell>
+                      <ResponsiveCell label="ISA share">{c.isa_params.income_share_pct}%</ResponsiveCell>
+                      <ResponsiveCell label="Loan rate">{formatRate(c.loan_params.annual_interest_rate)}</ResponsiveCell>
+                      <ResponsiveCell label="ISA term">{c.isa_params.term_months} mo</ResponsiveCell>
+                      <ResponsiveCell label="Loan term">{c.loan_params.term_months} mo</ResponsiveCell>
+                      <ResponsiveCell className="responsive-table-action">
                         <button
-                          className="btn btn-danger"
-                          style={{ padding: '0.25rem 0.6rem', fontSize: '0.78rem' }}
+                          className="btn btn-secondary table-icon-action"
                           onClick={() => handleDelete(c.id)}
                           disabled={deleting !== null || comparing}
                           aria-label={`Delete ${c.label}`}
                         >
-                          {deleting === c.id ? '…' : '🗑️'}
+                          {deleting === c.id ? '…' : <Trash2 size={17} strokeWidth={1.75} aria-hidden="true" />}
                         </button>
-                      </td>
+                      </ResponsiveCell>
                     </tr>
                 ))}
               </tbody>
@@ -136,16 +138,22 @@ export default function Saved() {
       </div>
       {ranking.length > 0 && (
         <section className="card section-top" aria-live="polite">
-          <h2 className="section-title">Repayment at {salary} LPA</h2>
+          <h2 className="section-title" id="ranking-title">Repayment at {salary} LPA</h2>
           <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th>Contract</th><th>ISA repayment</th><th>Loan repayment</th></tr></thead>
-              <tbody>
+            <table className="data-table responsive-table" role="table" aria-labelledby="ranking-title">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">Contract</th>
+                  <th scope="col" role="columnheader">ISA repayment</th>
+                  <th scope="col" role="columnheader">Loan repayment</th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
                 {ranking.map((row) => (
-                  <tr key={row.id}>
-                    <th scope="row">{row.label}</th>
-                    <td>{formatLakhs(row.isa_total_paid)}</td>
-                    <td>{formatLakhs(row.loan_total_paid)}</td>
+                  <tr key={row.id} role="row">
+                    <th scope="row" role="rowheader">{row.label}</th>
+                    <ResponsiveCell label="ISA repayment">{formatLakhs(row.isa_total_paid)}</ResponsiveCell>
+                    <ResponsiveCell label="Loan repayment">{formatLakhs(row.loan_total_paid)}</ResponsiveCell>
                   </tr>
                 ))}
               </tbody>

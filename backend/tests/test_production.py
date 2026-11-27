@@ -13,7 +13,10 @@ def test_production_serves_frontend_and_api_without_sqlite(tmp_path, monkeypatch
     (assets / "index.js").write_text("export {};", encoding="utf-8")
 
     with TestClient(production_app()) as client:
-        for path in ("/", "/scenarios", "/break-even", "/saved", "/contract-checker", "/methodology"):
+        for path in (
+            "/", "/scenarios", "/break-even", "/saved", "/contract-checker", "/methodology", "/about",
+            "/loan-rules", "/planning", "/dream-path", "/planner", "/data-and-sharing",
+        ):
             page = client.get(path)
             assert page.status_code == 200
             assert "<title>ISA Truth</title>" in page.text

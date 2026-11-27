@@ -16,12 +16,14 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app import db
+from app.accounts import AccountStore
 from app.limiter import limiter
-from app.routers import calculate, export, scenarios, sensitivity
+from app.routers import accounts, calculate, decisions, dream, expenses, export, planner, portfolio, scenarios, sensitivity, social_auth, workspace
 
 FRONTEND_ROUTES = (
-    "/", "/scenarios", "/sensitivity", "/break-even", "/saved",
+    "/", "/calculator", "/scenarios", "/sensitivity", "/break-even", "/saved",
     "/contract-checker", "/methodology", "/export",
+    "/planning", "/planner", "/dream-path", "/loan-rules", "/sign-in", "/sign-up", "/profile", "/about", "/workspace", "/data-and-sharing",
 )
 
 
@@ -41,13 +43,17 @@ def create_app(frontend_dir: Path | None = None, shared_contracts: bool = True) 
         lifespan=lifespan,
     )
     application.state.limiter = limiter
+    application.state.accounts = AccountStore()
     application.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     application.add_middleware(SlowAPIMiddleware)
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(request: Request, error: RequestValidationError) -> JSONResponse:
+        errors = error.errors()
+        if request.url.path.startswith(("/api/auth/", "/api/v1/auth/", "/api/dream/", "/api/v1/dream/")):
+            errors = [{key: item[key] for key in ("loc", "msg", "type")} for item in errors]
         details = jsonable_encoder(
-            error.errors(), custom_encoder={float: lambda value: value if isfinite(value) else str(value)}
+            errors, custom_encoder={float: lambda value: value if isfinite(value) else str(value)}
         )
         return JSONResponse(
             status_code=422,
@@ -56,11 +62,13 @@ def create_app(frontend_dir: Path | None = None, shared_contracts: bool = True) 
 
     default_origins = "http://localhost:5173,http://127.0.0.1:5173" if frontend_dir is None else ""
     origins = [origin.strip() for origin in getenv("ALLOWED_ORIGINS", default_origins).split(",") if origin.strip()]
+    public_url = getenv("RENDER_EXTERNAL_URL")
+    application.state.trusted_origins = [*origins, *([public_url.rstrip("/")] if public_url else [])]
     if origins:
         application.add_middleware(
             CORSMiddleware,
             allow_origins=origins,
-            allow_methods=["GET", "POST", "DELETE"],
+            allow_methods=["GET", "POST", "PATCH", "DELETE"],
             allow_headers=["Content-Type"],
         )
 
@@ -68,10 +76,13 @@ def create_app(frontend_dir: Path | None = None, shared_contracts: bool = True) 
         for router in (
             calculate.router, calculate.break_even_router, scenarios.router,
             sensitivity.router, export.router,
+            accounts.router, decisions.router, dream.router, expenses.router, planner.router, portfolio.router, workspace.router,
         ):
             application.include_router(router, prefix=prefix)
         if shared_contracts:
             application.include_router(export.contracts_router, prefix=prefix)
+
+    application.include_router(social_auth.router, prefix="/api")
 
     @application.get("/api/health", tags=["meta"])
     @application.get("/health", include_in_schema=False)

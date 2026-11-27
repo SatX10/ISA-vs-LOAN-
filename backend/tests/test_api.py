@@ -4,8 +4,10 @@ Integration tests for FastAPI main app and API routes.
 
 from __future__ import annotations
 import csv
-from io import StringIO
+from io import BytesIO, StringIO
 import pytest
+from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from starlette.testclient import TestClient
 
 from app import db
@@ -139,6 +141,102 @@ def test_export_csv(client, comparison_payload):
     assert len(rows) == 60
     assert float(rows[0]["isa_payment"]) == 0.1125
     assert float(rows[-1]["loan_closing_balance"]) == 0
+
+
+def test_advanced_loan_matches_calculator_planner_scenarios_and_csv(client, comparison_payload):
+    comparison_payload["loan"].update(
+        annual_interest_rate=0.12, term_months=12, upfront_fee=0.05, financed_cost=0.02,
+        withheld_fee=0.01, monthly_fee=0.002, grace_months=1, disbursements={"1": 2},
+        rate_changes={"3": 0.15},
+    )
+    comparison_payload.update(monthly_budget_inr=40_000, take_home_inr=50_000,
+                              essential_expenses_inr=15_000, other_debt_inr=5_000, discount_rate=0.08)
+    comparison = client.post("/api/calculate", json=comparison_payload)
+    assert comparison.status_code == 200
+    result = comparison.json()
+    loan = result["loan"]
+    assert loan["initial_disbursement"] == 3
+    assert loan["capitalized_interest"] == pytest.approx(0.0503)
+    assert [row["payment"] for row in loan["schedule"]][:1] == [0]
+    assert loan["schedule"][2]["annual_rate"] == 0.15
+    assert loan["total_paid"] == pytest.approx(5.03 + loan["total_interest"] + 0.05 + 12 * 0.002)
+    assert result["affordability"]["budget_inr"] == 30_000
+    assert result["affordability"]["loan"]["first_over_budget_month"] == 2
+    assert result["present_value"]["loan_repayment_inr"] < loan["total_paid"] * 100_000
+    planner_client = TestClient(app, client=("advanced-comparison-test", 50000))
+    planner = planner_client.post("/api/planner", json={**comparison_payload, "lower_salary_lpa": 3, "priority": "total_cost"})
+    assert planner.status_code == 200
+    assert planner.json()["plans"]["loan"]["expected_total_inr"] == pytest.approx(loan["total_paid"] * 100_000)
+    scenarios = client.post("/api/scenarios", json={**comparison_payload, "incomes": [6]})
+    assert scenarios.json()[0]["loan_total_paid"] == loan["total_paid"]
+    exported = client.post("/api/export/csv?include_income=false", json=comparison_payload)
+    rows = list(csv.DictReader(StringIO(exported.text)))
+    assert rows[0]["month"] == "0"
+    assert float(rows[0]["loan_upfront_fee"]) == 0.05
+    assert float(rows[-1]["loan_cumulative_paid"]) == loan["total_paid"]
+    assert all(row["isa_annual_income_lpa"] == "" for row in rows)
+
+
+def test_paying_month_isa_can_cross_the_loan_more_than_once(client, comparison_payload):
+    comparison_payload["isa"].update(
+        principal=0.75, income_share_pct=10, trigger_threshold_lpa=6, max_multiple=5,
+        annual_income_growth_rate=0.5, term_months=12, term_basis="paying", max_window_months=48,
+    )
+    comparison_payload["loan"].update(principal=0.75, annual_interest_rate=0, term_months=12)
+    result = client.post("/api/breakeven", json=comparison_payload).json()
+    assert result["status"] == "salary_ranges"
+    winners = [region["winner"] for region in result["regions"] if region["winner"] != "Tie"]
+    assert winners.count("ISA") >= 2 and winners.count("Loan") >= 2
+    assert result["curve"] and result["regions"][-1]["to_lpa"] == 100
+
+
+def test_portfolio_compares_funding_gaps_and_currency_stress(client, comparison_payload):
+    loan = {**comparison_payload["loan"], "annual_interest_rate": 0, "term_months": 50}
+    response = client.post("/api/portfolio", json={
+        "funding_goal_inr": 600_000, "grants_inr": 25_000, "savings_inr": 25_000,
+        "monthly_budget_inr": 10_500, "expected_salary_lpa": 6, "lower_salary_lpa": 4,
+        "higher_salary_lpa": 9, "fx_shock": 0.10, "offers": [
+            {"kind": "loan", "id": "a", "label": "Loan quote", "terms": loan, "foreign_currency": True},
+            {"kind": "isa", "id": "b", "label": "ISA quote", "terms": comparison_payload["isa"]},
+        ],
+    })
+    assert response.status_code == 200
+    report = response.json()
+    assert report["funding_needed_inr"] == 550_000
+    offer = report["offers"][0]
+    assert offer["remaining_gap_inr"] == 50_000
+    assert offer["cases"]["expected"]["fits_budget"] is True
+    assert offer["cases"]["fx_shock"]["fits_budget"] is False
+    assert offer["cases"]["fx_shock"]["peak_inr"] == 11_000
+
+
+def test_quote_pdf_rejects_wrong_types_and_malformed_files(client):
+    assert client.post("/api/portfolio/quote-text", content=b"no PDF").status_code == 415
+    response = client.post("/api/portfolio/quote-text", content=b"%PDF-1.7 broken",
+                           headers={"Content-Type": "application/pdf"})
+    assert response.status_code == 422
+
+
+def test_quote_pdf_returns_selectable_text(client):
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=200)
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({
+            NameObject("/F1"): DictionaryObject({
+                NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            }),
+        }),
+    })
+    contents = DecodedStreamObject()
+    contents.set_data(b"BT /F1 12 Tf 20 150 Td (Annual interest rate: 10.5%) Tj ET")
+    page[NameObject("/Contents")] = writer._add_object(contents)
+    output = BytesIO()
+    writer.write(output)
+    response = client.post("/api/portfolio/quote-text", content=output.getvalue(),
+                           headers={"Content-Type": "application/pdf"})
+    assert response.status_code == 200
+    assert "Annual interest rate: 10.5%" in response.json()["text"]
 
 
 def test_scenarios_endpoint(client):
